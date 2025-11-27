@@ -381,90 +381,138 @@
 
     </main>
 
-    <script>
-        // Simple input formatting script
-        const input = document.getElementById('userIdentifier');
-        const prefix = document.querySelector('.prefix');
+   <script>
+    // Simple input formatting script
+    const input = document.getElementById('userIdentifier');
+    const prefix = document.querySelector('.prefix');
 
-        input.addEventListener('input', (e) => {
-            const val = e.target.value;
-            
-            // Logic: If user types letters (ABHA address), hide +91 prefix. 
-            // If digits (Phone), show +91.
-            if (/[a-zA-Z]/.test(val)) {
-                prefix.style.display = 'none';
-                input.style.paddingLeft = '16px';
-            } else {
-                prefix.style.display = 'block';
-                input.style.paddingLeft = '50px';
-            }
-        });
-
- function proceedToLogin() {
-    const phone = input.value.trim();
-    
-    // Validate: Must be 10 digits
-    if (!phone || !/^\d{10}$/.test(phone)) {
-        alert('Please enter a valid 10-digit phone number');
-        input.focus();
-        input.style.borderColor = "#EF4444";
-        return;
-    }
-
-    const btn = document.querySelector('.btn-main');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = 'Sending OTP...';
-    btn.disabled = true;
-
-    fetch("/send_otp/", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ phone: phone })
-    })
-    .then(res => {
-        console.log('Response status:', res.status);
-        return res.json();
-    })
-    .then(data => {
-        console.log('Response data:', data);
+    input.addEventListener('input', (e) => {
+        const val = e.target.value;
         
-        if (data.status === "success") {
-            // Save phone to sessionStorage
-            sessionStorage.setItem("phone", phone);
-            
-            // Redirect to verification page
-            window.location.href = "/verify_otp_page/";
+        // Logic: If user types letters (ABHA address), hide +91 prefix. 
+        // If digits (Phone), show +91.
+        if (/[a-zA-Z]/.test(val)) {
+            prefix.style.display = 'none';
+            input.style.paddingLeft = '16px';
         } else {
-            alert("Failed: " + (data.message || "Unknown error"));
+            prefix.style.display = 'block';
+            input.style.paddingLeft = '50px';
+        }
+    });
+
+    function proceedToLogin() {
+        const phone = input.value.trim();
+        const btn = document.querySelector('.btn-main');
+        const originalText = btn.innerHTML;
+        const phoneRegex = /^\d{10}$/; // Only checking for 10 digits
+
+        // --- 1. Basic Validation ---
+        if (!phone || !phoneRegex.test(phone)) {
+            alert('Please enter a valid 10-digit phone number.');
+            input.focus();
+            input.style.borderColor = "#EF4444";
+            return;
+        }
+
+        // --- 2. Disable Button and Show Loading ---
+        btn.innerHTML = 'Checking record...';
+        btn.disabled = true;
+        input.style.borderColor = "#E2E8F0"; // Reset border color
+
+        // --- 3. First Fetch: Check if Patient Exists ---
+        fetch("/check_patient_exists/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                // You must include the CSRF token for any non-GET requests in Django
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({ phone: phone })
+        })
+        .then(res => {
+            if (!res.ok) {
+                // Handle HTTP errors (e.g., 500 server error)
+                throw new Error('Server check failed with status: ' + res.status);
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.exists) {
+                // --- 4. Patient Exists: Proceed to Send OTP ---
+                sendOtp(phone, btn, originalText);
+            } else {
+                // --- 5. Patient Does Not Exist: Prompt and Revert ---
+                alert("This phone number is not registered as a patient. Please create a new ABHA ID or contact support.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                input.style.borderColor = "#EF4444";
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error during patient check:', error);
+            alert("Network or server error during patient check. Check console and try again.");
             btn.innerHTML = originalText;
             btn.disabled = false;
+        });
+    }
+
+    function sendOtp(phone, btn, originalText) {
+        btn.innerHTML = 'Sending OTP...';
+        
+        // --- Second Fetch: Send OTP ---
+        fetch("/send_otp/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                // Include CSRF token
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({ phone: phone })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('Response data:', data);
+            
+            if (data.status === "success") {
+                // Success: Save phone and redirect
+                sessionStorage.setItem("phone", phone);
+                window.location.href = "/verify_otp_page/";
+            } else {
+                // Failure during OTP send
+                alert("Failed to send OTP: " + (data.message || "Unknown error"));
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error during OTP send:', error);
+            alert("Network error during OTP send. Check console and try again.");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+
+    // Function to retrieve CSRF token from cookies
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                let cookie = cookies[i].trim();
+                // Does this cookie string begin with the name we want?
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
         }
-    })
-    .catch(error => {
-        console.error('Fetch error:', error);
-        alert("Network error. Check console and try again.");
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    });
-}
+        return cookieValue;
+    }
 
-function getCookie(name) {
-    let value = "; " + document.cookie;
-    let parts = value.split("; " + name + "=");
-    if (parts.length === 2) return parts.pop().split(";").shift();
-}
-
-
-
-
-
-        function createABHA() {
-            alert("Redirecting to Govt ABHA Creation Portal...");
-        }
-    </script>
-  
+    function createABHA() {
+        alert("Redirecting to Govt ABHA Creation Portal...");
+    }
+</script>
 
 
 </body>
