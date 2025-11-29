@@ -27,12 +27,31 @@ def send_otp_page(request):
 def verify_otp_page(request):
     return render(request, 'accounts/verify_otp.html')
 
+from django.shortcuts import render, redirect
+from accounts.models import Patient # Adjust the import path for your Patient model
+
 def dashboard(request):
     # Patient Dashboard - Requires phone session key
+    
+    # 1. Check if the user is logged in
     if 'phone' not in request.session:
         return redirect('/')
+        
+    phone_number = request.session.get('phone')
+    
+    # 2. Retrieve the Patient object from the database
+    try:
+        current_patient = Patient.objects.get(phone=phone_number)
+    except Patient.DoesNotExist:
+        # Handle case: User is logged in but patient record is missing (shouldn't happen)
+        # We can log them out or redirect to an error page.
+        # For security, we'll redirect back home.
+        return redirect('/')
+
+    # 3. Pass the Patient object to the template context
     return render(request, 'accounts/dashboard.html', {
-        'phone': request.session.get('phone')
+        'patient': current_patient,
+        # The phone number is now easily accessible via patient.phone
     })
 
 @require_http_methods(["POST"])
