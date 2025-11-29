@@ -49,6 +49,7 @@ class Patient(models.Model):
 
 # Model for 'Doctor' table
 class Doctor(models.Model):
+    id = models.AutoField(primary_key=True)
     name = models.TextField()
     specification = models.TextField()
     # Foreign Key relations are usually better handled on the Booking/Hospital side.

@@ -12,6 +12,7 @@ urlpatterns = [
     path("hospital_loginpage/", views.hospital_owner_login_page, name="hospital_loginpage"),
     path('doctors_loginpage/', views.doctors_loginpage_view, name='doctors_loginpage'),
     path('doctor_booking/', views.doctor_booking_page, name='doctor_booking_page'),
+    path('pharmacy_booking/', views.pharmacy_login, name='pharmacy_login'),
     # --- Patient/Doctor APIs ---
     path('check_patient_exists/', views.check_patient_exists, name='check_patient_exists'),
     path('send_otp/', views.send_otp, name='send_otp'),
@@ -37,4 +38,12 @@ urlpatterns = [
     path('doctorsdashboard/<int:hospital_id>/', 
          views.doctor_dashboard_view, 
          name='doctors_dashboard'),
+    
+    path("doctor_login/", views.doctor_login, name="doctor_login"),
+path("doctor/dashboard/", views.doctor_dashboard, name="doctor_dashboard"),
+path("doctor/update-availability/", views.update_doctor_availability, name="update_doctor_availability"),
+path("api/doctor/availability/", views.update_doctor_availability, name="update_doctor_availability"),
+path("pharmacy/dashboard/", views.pharmacy_dashboard, name="pharmacy_dashboard"),
+
+
 ]

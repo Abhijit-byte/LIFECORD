@@ -32,6 +32,21 @@ def hospital_owner_login_page(request):
     return render(request, 'accounts/hospital_loginpage.html')
 def doctor_booking_page(request):
     return render(request, 'accounts/doctor_booking.html')
+def pharmacy_login(request):
+    return render(request, 'accounts/pharmacy_loginpage.html')
+def pharmacy_dashboard(request):
+    return render(request, 'accounts/pharmacy_dashboard.html')
+def doctor_dashboard(request):
+    doctor_id = request.session.get("doctor_id")
+
+    if not doctor_id:
+        return redirect("doctor_login")  # protection if session empty
+
+    doctor = Doctor.objects.get(id=doctor_id)
+
+    return render(request, "accounts/doctors_dashboard.html", {
+        "doctor_name": doctor.name,
+    })
 
 
 def send_otp_page(request):
@@ -451,5 +466,55 @@ def doctor_dashboard_view(request, hospital_id): # <-- NEW NAME HERE
 
 # NOTE: The API view `get_dashboard_data` is fine as it is.
 
+
+from django.http import JsonResponse
+from django.contrib import messages
+import json
+
+def doctor_login(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        doc_id = data.get("doc_id")
+        pin = data.get("pin")
+
+        doctor = Doctor.objects.filter(id=doc_id, pin=pin).first()
+
+        if doctor:
+            request.session["doctor_id"] = doctor.id
+            request.session["doctor_name"] = doctor.name  # store name in session
+
+            return JsonResponse({
+                "status": "success",
+                "doctor_name": doctor.name,                 # pass to JS
+                "redirect_url": "/doctor/dashboard/"        # your path
+            })
+
+        return JsonResponse({"status": "error", "message": "Invalid ID or PIN"})
+    
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_doctor_availability(request):
+    try:
+        doctor_id = request.session.get("doctor_id")
+        if not doctor_id:
+            return JsonResponse({"status": "error", "message": "Not logged in"}, status=401)
+
+        data = json.loads(request.body)
+        status = data.get("is_available")
+
+        doctor = Doctor.objects.get(id=doctor_id)
+        doctor.available = status
+        doctor.save()
+
+        return JsonResponse({"status": "success", "is_available": doctor.available})
+
+    except Doctor.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Doctor not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
