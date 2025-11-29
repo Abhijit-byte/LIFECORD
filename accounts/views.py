@@ -20,6 +20,17 @@ otp_storage = {}
 # ----------------------------------------------------------------------
 # --- PATIENT FLOW VIEWS (OTP-based) ---
 # ----------------------------------------------------------------------
+def landing(request):
+    return render(request, 'accounts/landing.html')
+def send_otp_page(request):
+    return render(request, 'accounts/send_otp.html')
+def doctors_loginpage_view(request):
+    return render(request, 'accounts/doctors_loginpage.html')
+def verify_otp_page(request):
+    return render(request, 'accounts/verify_otp.html')
+def hospital_owner_login_page(request):
+    return render(request, 'accounts/hospital_loginpage.html')
+
 
 def send_otp_page(request):
     return render(request, 'accounts/send_otp.html')
