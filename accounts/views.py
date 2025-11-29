@@ -30,6 +30,8 @@ def verify_otp_page(request):
     return render(request, 'accounts/verify_otp.html')
 def hospital_owner_login_page(request):
     return render(request, 'accounts/hospital_loginpage.html')
+def doctor_booking_page(request):
+    return render(request, 'accounts/doctor_booking.html')
 
 
 def send_otp_page(request):

@@ -11,6 +11,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'), 
     path("hospital_loginpage/", views.hospital_owner_login_page, name="hospital_loginpage"),
     path('doctors_loginpage/', views.doctors_loginpage_view, name='doctors_loginpage'),
+    path('doctor_booking/', views.doctor_booking_page, name='doctor_booking_page'),
     # --- Patient/Doctor APIs ---
     path('check_patient_exists/', views.check_patient_exists, name='check_patient_exists'),
     path('send_otp/', views.send_otp, name='send_otp'),
