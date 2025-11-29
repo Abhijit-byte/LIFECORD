@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>{{ hospital_name }} Dashboard</title> 
+    <title>{{ hospital_name|default:"Hospital Dashboard" }}</title> 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root{
@@ -143,6 +143,7 @@
                         <canvas id="appointmentsChart" height="160"></canvas>
                     </div>
 
+                    <!-- REVENUE CHART SIMULATION TARGET -->
                     <div class="chart-card">
                         <div class="chart-title">
                             <div>
@@ -220,7 +221,7 @@
 
 <script>
     // HOSPITAL_ID is dynamically injected by Django
-    const HOSPITAL_ID = "{{ hospital_id }}"; 
+    const HOSPITAL_ID = parseInt("{{ hospital_id|default:0 }}"); 
 
     // --- Utility function to format currency ---
     function formatCurrency(number) {
@@ -236,24 +237,36 @@
     const revCtx = document.getElementById('revenueChart').getContext('2d');
     let revenueChart = null;
 
-    // ---------- Main Data Fetch Function (FIXED) ----------
+    // --- Fallback Data (used if API fails) ---
+    const defaultAppointmentsData = {
+        labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+        booked: [34,28,36,30,40,22,20],
+        walkin: [12,8,10,6,14,8,4]
+    };
+
+    // ---------- Main Data Fetch Function ----------
 
     async function fetchDashboardData() {
-        if (!HOSPITAL_ID || HOSPITAL_ID === "None") {
-            console.error("Error: Hospital ID is missing. Cannot fetch data.");
-            document.getElementById('revenueToday').textContent = 'Error';
-            return;
-        }
+        // Initial Loading State
+        document.getElementById('revenueToday').textContent = '...';
+        document.getElementById('apptCount').textContent = '...';
+
+        let apptDataForSimulation = defaultAppointmentsData;
 
         try {
+            if (!HOSPITAL_ID || HOSPITAL_ID === "None") {
+                console.warn("Hospital ID is missing. Running in Simulation Only mode.");
+                throw new Error("Missing ID");
+            }
+
             // Correct API endpoint URL: /api/hospitaldashboard/<ID>/
             const response = await fetch(`/api/hospitaldashboard/${HOSPITAL_ID}/`); 
             
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 console.error('API Error Response:', errorData);
-                document.getElementById('revenueToday').textContent = 'API Failed';
-                document.getElementById('apptCount').textContent = 'X';
+                document.getElementById('revenueToday').textContent = 'Offline';
+                // We don't set apptCount to error here, we let the fallback simulation take over
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
             
@@ -261,10 +274,13 @@
             
             // --- 1. Update KPIs ---
             document.getElementById('revenueToday').textContent = data.kpis.revenue_today;
+            // Note: We will overwrite apptCount with the simulation, but we set it here initially just in case
             document.getElementById('apptCount').textContent = data.kpis.appointments_count;
 
-            // --- 2. Update Appointments Chart ---
-            initializeAppointmentsChart(data.charts.appointments_7d);
+            // --- 2. Prep Appointments Data for Simulation ---
+            if (data.charts && data.charts.appointments_7d) {
+                apptDataForSimulation = data.charts.appointments_7d;
+            }
 
             // --- 3. Update Doctors Table (Real Data) ---
             const tbody = document.getElementById('doctorsTable');
@@ -300,7 +316,6 @@
                     
                     const statusBg = u.status === 'Confirmed' ? 'rgba(47,109,246,0.12)' : 'rgba(255,181,0,0.12)';
                     const statusColor = u.status === 'Confirmed' ? 'var(--accent)' : '#c47c00';
-                    
                     const initials = u.patient.split(' ').map(p=>p[0]).slice(0,2).join('');
 
                     div.innerHTML = `<div class='icon'>${initials}</div>
@@ -312,37 +327,50 @@
                 upEl.innerHTML = '<p style="font-size:14px;color:var(--muted)">No upcoming appointments found.</p>';
             }
 
-
-            // --- 5. Start Real-time Revenue Simulation (Uses static demo data) ---
-            startRevenueSimulation();
-
         } catch (error) {
-            console.error('Fatal Error fetching or processing dashboard data:', error);
-            // Fallback for visual continuity if API fails
-            document.getElementById('revenueToday').textContent = '₹ Error';
-            document.getElementById('apptCount').textContent = 'X';
+            console.error('Dashboard data fetch error:', error);
+        } finally {
+            // --- 5. Start Real-time Simulations ---
+            // Moved to 'finally' so it runs even if API fails or is loading
+            startRevenueSimulation();
+            startAppointmentsSimulation(apptDataForSimulation);
         }
     }
 
-    // ---------- CHART FUNCTIONS (Remain mostly the same) ----------
+    // ---------- CHART FUNCTIONS ----------
 
-    function initializeAppointmentsChart(chartData) {
+    function initializeAppointmentsChartEmpty() {
         if (apChart) {
             apChart.destroy();
         }
         apChart = new Chart(apCtx, {
             type:'line',
             data:{
-                labels: chartData.labels,
+                labels: [], // Starts empty for simulation
                 datasets:[
-                    {label:'Booked', data: chartData.booked, fill:true, tension:0.35, backgroundColor:'rgba(47,109,246,0.12)', borderColor:'rgba(47,109,246,1)', pointRadius:3},
-                    {label:'Walk-ins', data: chartData.walkin, fill:true, tension:0.35, backgroundColor:'rgba(102,166,255,0.08)', borderColor:'rgba(102,166,255,1)', pointRadius:3}
+                    {
+                        label:'Booked', 
+                        data: [], 
+                        fill:true, tension:0.35, 
+                        backgroundColor:'rgba(47,109,246,0.12)', 
+                        borderColor:'rgba(47,109,246,1)', 
+                        pointRadius:3
+                    },
+                    {
+                        label:'Walk-ins', 
+                        data: [], 
+                        fill:true, tension:0.35, 
+                        backgroundColor:'rgba(102,166,255,0.08)', 
+                        borderColor:'rgba(102,166,255,1)', 
+                        pointRadius:3
+                    }
                 ]
             },
             options:{
                 plugins:{legend:{display:true,labels:{boxWidth:10}}},
                 interaction:{mode:'index',intersect:false},
-                scales:{y:{beginAtZero:true,ticks:{stepSize:10}}}
+                scales:{y:{beginAtZero:true,ticks:{stepSize:10}}},
+                animation: { duration: 500 }
             }
         });
     }
@@ -367,16 +395,21 @@
             },
             options: {
                 plugins:{legend:{display:false}},
-                scales: {y: {beginAtZero: true}}
+                scales: {y: {beginAtZero: true}},
+                animation: { duration: 500 }
             }
         });
     }
     
-    // Simulated incoming revenue values for week (thousands)
+    // --- Revenue Simulation Variables ---
     const simulatedWeek = [12, 18, 15, 22, 30, 26, 38]; 
     const weekDays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     let revIndex = 0;
     let realtimeTimer = null;
+
+    // --- Appointments Simulation Variables ---
+    let apptTimer = null;
+    let apptIndex = 0;
 
     function startRevenueSimulation() {
         if (realtimeTimer) clearInterval(realtimeTimer);
@@ -384,11 +417,11 @@
         initializeRevenueChart();
 
         const realtimeInfo = document.getElementById('realtimeInfo');
-        realtimeInfo.textContent = 'Showing live inflow...';
+        if(realtimeInfo) realtimeInfo.textContent = 'Showing live inflow...';
 
         realtimeTimer = setInterval(()=> {
             if (revIndex >= weekDays.length) {
-                realtimeInfo.textContent = 'Week data complete (simulation).';
+                if(realtimeInfo) realtimeInfo.textContent = 'Week data complete (simulation).';
                 clearInterval(realtimeTimer);
                 realtimeTimer = null;
                 return;
@@ -400,18 +433,56 @@
 
             // Update top KPI based on the SIMULATED chart data
             const cum = revenueChart.data.datasets[0].data.reduce((a,b)=>a+b,0);
-            // This line updates the main KPI during simulation, overwriting the database value temporarily.
-            document.getElementById('revenueToday').textContent = formatCurrency(cum * 1000); 
+            const kpi = document.getElementById('revenueToday');
+            if(kpi) kpi.textContent = formatCurrency(cum * 1000); 
 
             revIndex++;
         }, 1500);
+    }
+
+    function startAppointmentsSimulation(sourceData) {
+        if (apptTimer) clearInterval(apptTimer);
+        apptIndex = 0;
+        initializeAppointmentsChartEmpty();
+
+        const labels = sourceData.labels || weekDays;
+        const booked = sourceData.booked || [];
+        const walkin = sourceData.walkin || [];
+
+        apptTimer = setInterval(() => {
+            if (apptIndex >= labels.length) {
+                clearInterval(apptTimer);
+                apptTimer = null;
+                return;
+            }
+
+            // Push data
+            apChart.data.labels.push(labels[apptIndex]);
+            const bVal = booked[apptIndex] !== undefined ? booked[apptIndex] : 0;
+            const wVal = walkin[apptIndex] !== undefined ? walkin[apptIndex] : 0;
+            
+            apChart.data.datasets[0].data.push(bVal);
+            apChart.data.datasets[1].data.push(wVal);
+            apChart.update();
+
+            // Dynamic KPI Update: Sum of Booked + Walkin so far
+            const currentBookedTotal = apChart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+            const currentWalkinTotal = apChart.data.datasets[1].data.reduce((a,b)=>a+b,0);
+            const total = currentBookedTotal + currentWalkinTotal;
+            
+            const kpi = document.getElementById('apptCount');
+            if(kpi) kpi.textContent = total;
+
+            apptIndex++;
+
+        }, 800); // Slightly faster than revenue chart for variety
     }
     
     // Call the main fetch function when the page loads
     document.addEventListener('DOMContentLoaded', fetchDashboardData);
 
     // ------------------------------------------------------------------
-    // --- STATIC WIDGET DATA AND TOGGLE LOGIC (Kept as-is) ---
+    // --- STATIC WIDGET DATA AND TOGGLE LOGIC ---
     // ------------------------------------------------------------------
 
     const messages = [
@@ -423,6 +494,7 @@
     const msgUnread = document.getElementById('msgUnread');
 
     function renderMessages() {
+        if(!messagesList) return;
         messagesList.innerHTML = '';
         messages.forEach(m=>{
             const d = document.createElement('div');
@@ -434,32 +506,42 @@
                             <div><h5>${m.from}</h5><p>${m.text}</p></div>`;
             messagesList.appendChild(d);
         });
-        msgUnread.textContent = `${messages.length} unread`;
+        if(msgUnread) msgUnread.textContent = `${messages.length} unread`;
     }
     renderMessages();
 
     // Toggle dropdown
     const msgToggle = document.getElementById('msgToggle');
     const msgArrow = document.getElementById('msgArrow');
-    msgToggle.addEventListener('click', ()=>{
-        const dd = document.getElementById('messagesList');
-        const isHidden = dd.style.display === 'none' || dd.style.display === '';
-        dd.style.display = isHidden ? 'block' : 'none';
-        msgArrow.textContent = isHidden ? '▲' : '▼';
-    });
+    if(msgToggle && msgArrow) {
+        msgToggle.addEventListener('click', ()=>{
+            const dd = document.getElementById('messagesList');
+            const isHidden = dd.style.display === 'none' || dd.style.display === '';
+            dd.style.display = isHidden ? 'block' : 'none';
+            msgArrow.textContent = isHidden ? '▲' : '▼';
+        });
+    }
 
     // Clicking notification bell also opens the messages
-    document.getElementById('notifBell').addEventListener('click', ()=> {
-        const dd = document.getElementById('messagesList');
-        const isHidden = dd.style.display === 'none' || dd.style.display === '';
-        dd.style.display = isHidden ? 'block' : 'none';
-        msgArrow.textContent = isHidden ? '▲' : '▼';
-    });
+    const notifBell = document.getElementById('notifBell');
+    if(notifBell) {
+        notifBell.addEventListener('click', ()=> {
+            const dd = document.getElementById('messagesList');
+            const isHidden = dd.style.display === 'none' || dd.style.display === '';
+            dd.style.display = isHidden ? 'block' : 'none';
+            if(msgArrow) msgArrow.textContent = isHidden ? '▲' : '▼';
+        });
+    }
 
     // Optional: auto-mark messages as read after opening
-    msgToggle.addEventListener('click', ()=> {
-        setTimeout(()=>{ document.getElementById('notifCount').style.display = 'none'; }, 1000);
-    });
+    if(msgToggle) {
+        msgToggle.addEventListener('click', ()=> {
+            setTimeout(()=>{ 
+                const nc = document.getElementById('notifCount');
+                if(nc) nc.style.display = 'none'; 
+            }, 1000);
+        });
+    }
 
     // ---------- EMI Payment Alerts (example)
     const emiAlerts = [
@@ -467,14 +549,16 @@
         {patient:'Rahul Sharma', amount:'₹1,200', due:'Overdue'}
     ];
     const emiEl = document.getElementById('emiAlerts');
-    emiAlerts.forEach(e=>{
-        const div = document.createElement('div');
-        div.className = 'emi-alert';
-        div.innerHTML = `<div style="width:40px;height:40px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center;color:#c44747;font-weight:700">₹</div>
-                        <div style="flex:1"><strong>${e.patient}</strong><div style="font-size:13px;color:var(--muted)">${e.amount} • Due: ${e.due}</div></div>
-                        <div><button style="padding:8px;border-radius:8px;border:0;background:#f5f5f5;cursor:pointer">Details</button></div>`;
-        emiEl.appendChild(div);
-    });
+    if(emiEl) {
+        emiAlerts.forEach(e=>{
+            const div = document.createElement('div');
+            div.className = 'emi-alert';
+            div.innerHTML = `<div style="width:40px;height:40px;border-radius:8px;background:#fff0f0;display:flex;align-items:center;justify-content:center;color:#c44747;font-weight:700">₹</div>
+                            <div style="flex:1"><strong>${e.patient}</strong><div style="font-size:13px;color:var(--muted)">${e.amount} • Due: ${e.due}</div></div>
+                            <div><button style="padding:8px;border-radius:8px;border:0;background:#f5f5f5;cursor:pointer">Details</button></div>`;
+            emiEl.appendChild(div);
+        });
+    }
     
 </script>
 </body>

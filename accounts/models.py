@@ -219,23 +219,20 @@ class Booking(models.Model):
     
 
 
-
+from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.auth.models import User
+# Model for 'HospitalOwner' table
 
-# This model represents the single administrator/owner of a hospital
 class HospitalOwner(models.Model):
-    # Links to a Django User for login (username/password)
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    
-    # 🌟 CRUCIAL LINK: Each Owner manages ONE Hospital 🌟
     hospital = models.OneToOneField(
-        'Hospital', 
-        on_delete=models.PROTECT, 
-        related_name='owner_profile'
+        Hospital,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name='owner'
     )
-    # Add other profile fields if needed (e.g., full_name, email)
+    username = models.CharField(max_length=50, unique=True)
+    password = models.CharField(max_length=50)  # PLAIN TEXT
 
     def __str__(self):
-        return f"Owner: {self.user.username} ({self.hospital.name})"
-
-# Ensure you run makemigrations and migrate after this change!
+        return f"{self.username} ({self.hospital.name})"

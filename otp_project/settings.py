@@ -83,7 +83,7 @@ import dj_database_url
 import os
 
 # Your provided PostgreSQL connection URL
-DATABASE_URL = "postgresql://postgres:jVIiAMXvKvcplkxEdINtkcEQPPdnSgOv@shuttle.proxy.rlwy.net:22228/railway"
+DATABASE_URL = "postgresql://postgres:hnzODQjiNmZDOrlgwzFStzpOSaRadYrA@interchange.proxy.rlwy.net:43743/railway"
 
 # 1. Set the DATABASES environment variable (optional, but good practice for reading environment variables)
 # os.environ["DATABASE_URL"] = DATABASE_URL 

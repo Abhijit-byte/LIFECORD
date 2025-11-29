@@ -123,32 +123,169 @@ def verify_otp(request):
 # ----------------------------------------------------------------------
 
 #@login_required 
-#@login_required 
-def hospital_dashboard(request, hospital_id): 
-    """
-    TEMPORARY FULL BYPASS: Only fetches the Hospital for context to allow 
-    frontend rendering. Authorization is skipped.
-    """
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login 
+from .models import HospitalOwner, Hospital # Assuming these models exist
+
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login 
+ # Ensure HospitalAccess model is used
+
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login 
+# Import both your CustomUser model (for staff) and Hospital model
+
+# We will use the Hospital model itself to store the facility-level password for simplicity, 
+# or you can use a dedicated HospitalAccess model if preferred.
+
+# In LIFE-CORD/accounts/views.py
+
+import json
+from django.http import JsonResponse, HttpResponseForbidden
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login 
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+
+# In LIFE-CORD/mobile_otp_login/accounts/views.py
+
+import json
+from django.http import JsonResponse, HttpResponseForbidden
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login 
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+# Import the specific models needed
+from .models import HospitalOwner, Hospital 
+# NOTE: If you are not using Django's main auth system, you will need a 
+# Custom Authentication Backend or use session management manually. 
+# For simplicity, we assume you have a generic User model (e.g., CustomUser) 
+# to link to the session for @login_required to work, but we will focus on 
+# the HospitalOwner check only.
+
+# In LIFE-CORD/mobile_otp_login/accounts/views.py
+
+import json
+from django.http import JsonResponse, HttpResponseForbidden
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login 
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+# Import the specific models needed from your existing models.py
+from .models import HospitalOwner, Hospital, HospitalOwner
+
+
+# --- RENDER VIEW (To open the login page) ---
+# In LIFE-CORD/mobile_otp_login/accounts/views.py
+
+import json
+from django.http import JsonResponse, HttpResponseForbidden
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import login
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+# --- FIXED IMPORT ---
+from django.contrib.auth.models import User
+from .models import HospitalOwner, Hospital 
+# --------------------
+
+
+# --- RENDER VIEW (No change) ---
+def render_hospital_login(request):
+    """Renders the main hospital login page."""
+    return render(request, 'accounts/hospital_loginpage.html')
+
+
+# --- DEDICATED API VIEW (Hospital Owner Only) ---
+@csrf_exempt
+def hospital_owner_login_api(request):
+    if request.method != 'POST':
+        return JsonResponse({'message': 'Only POST requests are allowed.'}, status=405)
+
     try:
-        # 1. Fetch the Hospital object based on the URL ID
-        # THIS IS THE ONLY DB QUERY WE RUN in the template view now.
-        hospital = get_object_or_404(Hospital, id=hospital_id)
-        
-        # 2. Skip ALL original authorization logic (HospitalOwner, user checks)
-        #    since we are not logged in.
-        
-    except Hospital.DoesNotExist:
-        # If the ID is invalid, return a 404
-        return JsonResponse({'error': f'Hospital with ID {hospital_id} not found'}, status=404) 
+        data = json.loads(request.body)
+        owner_username = data.get('nin') # Using 'nin' from frontend as the username/login_id
+        password = data.get('password')
+    except json.JSONDecodeError:
+        return JsonResponse({'message': 'Invalid JSON format'}, status=400)
 
-    # 3. Render the dashboard, passing the verified ID and NAME
+    # --- AUTHENTICATION: HOSPITAL OWNER LOGIN ---
+    try:
+        # 1. Look up the HospitalOwner record by username
+        owner_instance = HospitalOwner.objects.get(username=owner_username)
+
+        # 🚨 WARNING: INSECURE PASSWORD CHECK! (Kept as per constraint)
+        if owner_instance.password == password:
+
+            # Hospital Owner Login SUCCESS
+            hospital_id = owner_instance.hospital.id
+
+            # 2. Log in the associated specific User account for session tracking
+            # ASSUMPTION: The HospitalOwner has a corresponding Django User (User model) 
+            # with the same username for session tracking.
+            try:
+                # Use the imported Django 'User' model
+                system_user = User.objects.get(username=owner_username)
+                login(request, system_user) # Establish Django session
+            except User.DoesNotExist:
+                return JsonResponse({'message': 'Owner account found, but session user is missing (User model).'}, status=500)
+
+            # 3. Redirect the owner to the specialized admin dashboard
+            redirect_url = f'/accounts/dashboard/admin/{hospital_id}/'
+
+            return JsonResponse({
+                'message': f'Facility Access Granted: {owner_instance.hospital.name}',
+                'redirectUrl': redirect_url
+            }, status=200)
+
+        else:
+             # Password mismatch
+             raise HospitalOwner.DoesNotExist # Fails the check, jumps to final failure block
+
+    except HospitalOwner.DoesNotExist:
+        # No HospitalOwner found or password mismatch
+        pass
+
+    # --- FINAL FAILURE ---
+    return JsonResponse({'message': 'Invalid ID or Password.'}, status=401)
+
+
+# --- DASHBOARD VIEW (Authorization Enforced) ---
+@login_required
+def hospital_owner_dashboard(request, hospital_id):
+    """Checks for both authentication (@login_required) and authorization (ID/Role)."""
+
+    # 1. Get the Hospital instance
+    hospital = get_object_or_404(Hospital, id=hospital_id)
+
+    # 2. Authorization Check: Ensure the logged-in user is the actual owner of this hospital
+    try:
+        # Retrieve the HospitalOwner instance associated with the requested Hospital
+        owner_instance = HospitalOwner.objects.get(hospital=hospital)
+
+        # Check if the logged-in User's username matches the HospitalOwner's username
+        if request.user.username != owner_instance.username:
+            # User is logged in, but not as the owner of this specific hospital
+            return HttpResponseForbidden("Access Denied: Not the authorized Hospital Owner.")
+
+    except HospitalOwner.DoesNotExist:
+        # Hospital has no linked owner record
+        return HttpResponseForbidden("Configuration Error: Hospital Owner not defined.")
+
+
+    # Authorization Passed
     return render(request, 'accounts/hospitaldashboard.html', {
-        'hospital_id': hospital_id,
-        'hospital_name': hospital.name
+        'hospital_id': hospital_id,          # <--- ADD THIS LINE
+        'hospital_name': hospital.name,      # <--- ADDED hospital_name for the HTML title/topbar
+        'owner_username': request.user.username
     })
-
-
-# ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 # --- DASHBOARD API VIEW (WITH FILTERING) ---
 # ----------------------------------------------------------------------
 
@@ -233,3 +370,54 @@ def get_dashboard_data(request, hospital_id):
     except Exception as e:
         # If a model attribute is missing (e.g., Hospital.revenue), it will hit here
         return JsonResponse({'error': f'Internal Server Error: {str(e)}'}, status=500)
+    
+# views.py (Add this function)
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def update_doctor_availability(request):
+    """Updates the 'available' status of the logged-in doctor."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    try:
+        # 1. Get the current Doctor profile linked to the user
+        # NOTE: You need a one-to-one relationship from User to Doctor for this to work.
+        doctor = get_object_or_404(Doctor, user=request.user)
+    except Doctor.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Doctor profile not found'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+        new_status = data.get("is_available") # True or False
+        
+        # 2. Update the status
+        doctor.available = new_status
+        doctor.save()
+        
+        return JsonResponse({'status': 'success', 'is_available': doctor.available})
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON format'}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+# views.py (Rename the old function to doctor_dashboard_view)
+
+def doctor_dashboard_view(request, hospital_id): # <-- NEW NAME HERE
+    """Renders the unsecured Doctor's Command Center (for testing)."""
+    try:
+        hospital = get_object_or_404(Hospital, id=hospital_id)
+    except Hospital.DoesNotExist:
+        return JsonResponse({'error': f'Hospital with ID {hospital_id} not found'}, status=404) 
+
+    # Renders the doctor's specific template
+    return render(request, 'accounts/doctors_dashboard.html', {
+        'hospital_id': hospital_id,
+        'hospital_name': hospital.name
+    })
+
+# NOTE: The API view `get_dashboard_data` is fine as it is.
+
+
+

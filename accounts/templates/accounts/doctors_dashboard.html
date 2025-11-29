@@ -94,22 +94,35 @@
         /* Time Pill */
         .live-time { font-weight: 600; color: var(--primary-color); background: white; padding: 10px 20px; border-radius: 30px; box-shadow: var(--shadow-soft); font-size: 0.9rem; border: 1px solid #f0f0f0; }
 
-        /* NEW STATUS TOGGLE BUTTON */
-        .status-toggle-btn {
-            background: white; padding: 8px 20px; border-radius: 30px;
-            box-shadow: var(--shadow-soft); cursor: pointer; display: flex;
-            align-items: center; gap: 10px; font-weight: 600; font-size: 0.9rem;
-            transition: all 0.2s; border: 1px solid #f0f0f0; min-width: 130px; 
-            justify-content: center;
+        /* NEW SLIDE TOGGLE BUTTON */
+        .status-wrapper {
+            display: flex; align-items: center; gap: 12px;
+            background: white; padding: 6px 18px 6px 8px;
+            border-radius: 40px; box-shadow: var(--shadow-soft);
+            border: 1px solid #f0f0f0; cursor: pointer; transition: all 0.3s;
         }
-        .status-toggle-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-hover); }
-        .status-toggle-btn:active { transform: scale(0.98); }
-
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); transition: background-color 0.3s ease; }
+        .status-wrapper:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
         
-        /* Status Colors */
-        .s-green { background-color: var(--color-success); box-shadow: 0 0 0 3px #D1FAE5; }
-        .s-red { background-color: var(--color-danger); box-shadow: 0 0 0 3px #FEE2E2; }
+        .toggle-track {
+            width: 52px; height: 30px; border-radius: 30px;
+            background: #e5e7eb; position: relative;
+            transition: background 0.3s ease;
+        }
+        
+        .toggle-knob {
+            width: 24px; height: 24px; background: white;
+            border-radius: 50%; position: absolute; top: 3px; left: 3px;
+            transition: left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Active State (Green) */
+        .status-wrapper.active .toggle-track { background: var(--color-success); }
+        .status-wrapper.active .toggle-knob { left: 25px; }
+        
+        /* Inactive State (Red) */
+        .status-wrapper.inactive .toggle-track { background: var(--color-danger); }
+        .status-wrapper.inactive .toggle-knob { left: 3px; }
 
         /* Doc Profile */
         .doc-profile {
@@ -347,11 +360,13 @@
                     <!-- 1. Live Time -->
                     <div class="live-time" id="liveClock">10:30 AM</div>
 
-                    <!-- 2. Status Toggle Button -->
-                    <button class="status-toggle-btn" onclick="toggleAvailability()" id="statusToggle">
-                        <span class="status-dot s-green" id="statusDot"></span>
-                        <span id="statusText">Available</span>
-                    </button>
+                    <!-- 2. Slider Toggle Button -->
+                    <div class="status-wrapper active" id="statusWrapper" onclick="toggleAvailability()">
+                        <div class="toggle-track">
+                            <div class="toggle-knob"></div>
+                        </div>
+                        <span id="statusText" style="font-weight:600; font-size:0.9rem; margin-left:8px; min-width:80px;">Available</span>
+                    </div>
                     
                     <!-- 3. Doctor Profile -->
                     <div class="doc-profile" onclick="openProfileModal()">
@@ -542,251 +557,376 @@
         </div>
     </div>
 
-    <script>
-        // --- CENTRAL DATA STORE ---
-        // 7 Waiting (Remaining) + 18 Completed (History) = 25 Total
-        let PATIENTS = [
-            // WAITING (7)
-            { id: "LC-9021", name: "Rahul Verma", age: "34 / M", time: "10:30 AM", img: "https://ui-avatars.com/api/?name=Rahul+Verma&background=random", status: "waiting", report: "Blood Work", reportStatus: "ready" },
-            { id: "LC-3321", name: "Priya Das", age: "29 / F", time: "10:45 AM", img: "https://ui-avatars.com/api/?name=Priya+Das&background=random", status: "waiting", report: "Chest X-Ray", reportStatus: "ready" },
-            { id: "LC-8812", name: "Amit Kumar", age: "45 / M", time: "11:00 AM", img: "https://ui-avatars.com/api/?name=Amit+Kumar&background=random", status: "waiting", report: "MRI Scan", reportStatus: "pending" },
-            { id: "LC-1102", name: "Sneha Gupta", age: "62 / F", time: "11:15 AM", img: "https://ui-avatars.com/api/?name=Sneha+Gupta&background=random", status: "waiting", report: "CT Scan", reportStatus: "ready" },
-            { id: "LC-5543", name: "Vikram Singh", age: "40 / M", time: "11:30 AM", img: "https://ui-avatars.com/api/?name=Vikram+Singh&background=random", status: "waiting", report: "Blood Work", reportStatus: "pending" },
-            { id: "LC-2231", name: "Arun Patel", age: "50 / M", time: "11:45 AM", img: "https://ui-avatars.com/api/?name=Arun+Patel&background=random", status: "waiting", report: "ECG", reportStatus: "ready" },
-            { id: "LC-7742", name: "Meera Nair", age: "31 / F", time: "12:00 PM", img: "https://ui-avatars.com/api/?name=Meera+Nair&background=random", status: "waiting", report: "Thyroid Profile", reportStatus: "pending" },
+<script>
+    // --- GLOBAL VARIABLES (Will be dynamically set by DB fetch) ---
+    let PATIENTS = [
+        // WAITING (7)
+        { id: "LC-9021", name: "Rahul Verma", age: "34 / M", time: "10:30 AM", img: "https://ui-avatars.com/api/?name=Rahul+Verma&background=random", status: "waiting", report: "Blood Work", reportStatus: "ready" },
+        { id: "LC-3321", name: "Priya Das", age: "29 / F", time: "10:45 AM", img: "https://ui-avatars.com/api/?name=Priya+Das&background=random", status: "waiting", report: "Chest X-Ray", reportStatus: "ready" },
+        { id: "LC-8812", name: "Amit Kumar", age: "45 / M", time: "11:00 AM", img: "https://ui-avatars.com/api/?name=Amit+Kumar&background=random", status: "waiting", report: "MRI Scan", reportStatus: "pending" },
+        { id: "LC-1102", name: "Sneha Gupta", age: "62 / F", time: "11:15 AM", img: "https://ui-avatars.com/api/?name=Sneha+Gupta&background=random", status: "waiting", report: "CT Scan", reportStatus: "ready" },
+        { id: "LC-5543", name: "Vikram Singh", age: "40 / M", time: "11:30 AM", img: "https://ui-avatars.com/api/?name=Vikram+Singh&background=random", status: "waiting", report: "Blood Work", reportStatus: "pending" },
+        { id: "LC-2231", name: "Arun Patel", age: "50 / M", time: "11:45 AM", img: "https://ui-avatars.com/api/?name=Arun+Patel&background=random", status: "waiting", report: "ECG", reportStatus: "ready" },
+        { id: "LC-7742", name: "Meera Nair", age: "31 / F", time: "12:00 PM", img: "https://ui-avatars.com/api/?name=Meera+Nair&background=random", status: "waiting", report: "Thyroid Profile", reportStatus: "pending" },
 
-            // COMPLETED (18)
-            { id: "LC-1001", name: "John Doe", age: "40 / M", time: "08:00 AM", img: "https://ui-avatars.com/api/?name=John+Doe&background=random", status: "completed", report: "Complete Blood Count", reportStatus: "ready" },
-            { id: "LC-1002", name: "Jane Smith", age: "35 / F", time: "08:15 AM", img: "https://ui-avatars.com/api/?name=Jane+Smith&background=random", status: "completed", report: "Lipid Profile", reportStatus: "ready" },
-            { id: "LC-1003", name: "Robert Brown", age: "55 / M", time: "08:30 AM", img: "https://ui-avatars.com/api/?name=Robert+Brown&background=random", status: "completed", report: "Liver Function Test", reportStatus: "ready" },
-            { id: "LC-1004", name: "Emily Davis", age: "28 / F", time: "08:45 AM", img: "https://ui-avatars.com/api/?name=Emily+Davis&background=random", status: "completed", report: "Kidney Function Test", reportStatus: "ready" },
-            { id: "LC-1005", name: "Michael Wilson", age: "42 / M", time: "09:00 AM", img: "https://ui-avatars.com/api/?name=Michael+Wilson&background=random", status: "completed", report: "Blood Sugar", reportStatus: "ready" },
-            { id: "LC-1006", name: "Sarah Johnson", age: "30 / F", time: "09:15 AM", img: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=random", status: "completed", report: "Urine Analysis", reportStatus: "ready" },
-            { id: "LC-1007", name: "David Lee", age: "48 / M", time: "09:30 AM", img: "https://ui-avatars.com/api/?name=David+Lee&background=random", status: "completed", report: "X-Ray", reportStatus: "ready" },
-            { id: "LC-1008", name: "Laura White", age: "33 / F", time: "09:45 AM", img: "https://ui-avatars.com/api/?name=Laura+White&background=random", status: "completed", report: "MRI", reportStatus: "ready" },
-            { id: "LC-1009", name: "Kevin Harris", age: "52 / M", time: "10:00 AM", img: "https://ui-avatars.com/api/?name=Kevin+Harris&background=random", status: "completed", report: "CT Scan", reportStatus: "ready" },
-            { id: "LC-1010", name: "Amanda Clark", age: "29 / F", time: "10:15 AM", img: "https://ui-avatars.com/api/?name=Amanda+Clark&background=random", status: "completed", report: "Ultrasound", reportStatus: "ready" },
-            { id: "LC-1011", name: "Brian Lewis", age: "38 / M", time: "10:30 AM", img: "https://ui-avatars.com/api/?name=Brian+Lewis&background=random", status: "completed", report: "ECG", reportStatus: "ready" },
-            { id: "LC-1012", name: "Megan Walker", age: "26 / F", time: "10:45 AM", img: "https://ui-avatars.com/api/?name=Megan+Walker&background=random", status: "completed", report: "Blood Pressure", reportStatus: "ready" },
-            { id: "LC-1013", name: "Jason Hall", age: "41 / M", time: "11:00 AM", img: "https://ui-avatars.com/api/?name=Jason+Hall&background=random", status: "completed", report: "Cholesterol", reportStatus: "ready" },
-            { id: "LC-1014", name: "Stephanie Allen", age: "34 / F", time: "11:15 AM", img: "https://ui-avatars.com/api/?name=Stephanie+Allen&background=random", status: "completed", report: "Vitamin D", reportStatus: "ready" },
-            { id: "LC-1015", name: "Gary Young", age: "58 / M", time: "11:30 AM", img: "https://ui-avatars.com/api/?name=Gary+Young&background=random", status: "completed", report: "Thyroid", reportStatus: "ready" },
-            { id: "LC-1016", name: "Rebecca King", age: "32 / F", time: "11:45 AM", img: "https://ui-avatars.com/api/?name=Rebecca+King&background=random", status: "completed", report: "Iron Profile", reportStatus: "ready" },
-            { id: "LC-1017", name: "Brandon Scott", age: "44 / M", time: "12:00 PM", img: "https://ui-avatars.com/api/?name=Brandon+Scott&background=random", status: "completed", report: "Allergy Test", reportStatus: "ready" },
-            { id: "LC-1018", name: "Melissa Adams", age: "27 / F", time: "12:15 PM", img: "https://ui-avatars.com/api/?name=Melissa+Adams&background=random", status: "completed", report: "Pregnancy Test", reportStatus: "ready" }
-        ];
+        // COMPLETED (18)
+        { id: "LC-1001", name: "John Doe", age: "40 / M", time: "08:00 AM", img: "https://ui-avatars.com/api/?name=John+Doe&background=random", status: "completed", report: "Complete Blood Count", reportStatus: "ready" },
+        { id: "LC-1002", name: "Jane Smith", age: "35 / F", time: "08:15 AM", img: "https://ui-avatars.com/api/?name=Jane+Smith&background=random", status: "completed", report: "Lipid Profile", reportStatus: "ready" },
+        { id: "LC-1003", name: "Robert Brown", age: "55 / M", time: "08:30 AM", img: "https://ui-avatars.com/api/?name=Robert+Brown&background=random", status: "completed", report: "Liver Function Test", reportStatus: "ready" },
+        { id: "LC-1004", name: "Emily Davis", age: "28 / F", time: "08:45 AM", img: "https://ui-avatars.com/api/?name=Emily+Davis&background=random", status: "completed", report: "Kidney Function Test", reportStatus: "ready" },
+        { id: "LC-1005", name: "Michael Wilson", age: "42 / M", time: "09:00 AM", img: "https://ui-avatars.com/api/?name=Michael+Wilson&background=random", status: "completed", report: "Blood Sugar", reportStatus: "ready" },
+        { id: "LC-1006", name: "Sarah Johnson", age: "30 / F", time: "09:15 AM", img: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=random", status: "completed", report: "Urine Analysis", reportStatus: "ready" },
+        { id: "LC-1007", name: "David Lee", age: "48 / M", time: "09:30 AM", img: "https://ui-avatars.com/api/?name=David+Lee&background=random", status: "completed", report: "X-Ray", reportStatus: "ready" },
+        { id: "LC-1008", name: "Laura White", age: "33 / F", time: "09:45 AM", img: "https://ui-avatars.com/api/?name=Laura+White&background=random", status: "completed", report: "MRI", reportStatus: "ready" },
+        { id: "LC-1009", name: "Kevin Harris", age: "52 / M", time: "10:00 AM", img: "https://ui-avatars.com/api/?name=Kevin+Harris&background=random", status: "completed", report: "CT Scan", reportStatus: "ready" },
+        { id: "LC-1010", name: "Amanda Clark", age: "29 / F", time: "10:15 AM", img: "https://ui-avatars.com/api/?name=Amanda+Clark&background=random", status: "completed", report: "Ultrasound", reportStatus: "ready" },
+        { id: "LC-1011", name: "Brian Lewis", age: "38 / M", time: "10:30 AM", img: "https://ui-avatars.com/api/?name=Brian+Lewis&background=random", status: "completed", report: "ECG", reportStatus: "ready" },
+        { id: "LC-1012", name: "Megan Walker", age: "26 / F", time: "10:45 AM", img: "https://ui-avatars.com/api/?name=Megan+Walker&background=random", status: "completed", report: "Blood Pressure", reportStatus: "ready" },
+        { id: "LC-1013", name: "Jason Hall", age: "41 / M", time: "11:00 AM", img: "https://ui-avatars.com/api/?name=Jason+Hall&background=random", status: "completed", report: "Cholesterol", reportStatus: "ready" },
+        { id: "LC-1014", name: "Stephanie Allen", age: "34 / F", time: "11:15 AM", img: "https://ui-avatars.com/api/?name=Stephanie+Allen&background=random", status: "completed", report: "Vitamin D", reportStatus: "ready" },
+        { id: "LC-1015", name: "Gary Young", age: "58 / M", time: "11:30 AM", img: "https://ui-avatars.com/api/?name=Gary+Young&background=random", status: "completed", report: "Thyroid", reportStatus: "ready" },
+        { id: "LC-1016", name: "Rebecca King", age: "32 / F", time: "11:45 AM", img: "https://ui-avatars.com/api/?name=Rebecca+King&background=random", status: "completed", report: "Iron Profile", reportStatus: "ready" },
+        { id: "LC-1017", name: "Brandon Scott", age: "44 / M", time: "12:00 PM", img: "https://ui-avatars.com/api/?name=Brandon+Scott&background=random", status: "completed", report: "Allergy Test", reportStatus: "ready" },
+        { id: "LC-1018", name: "Melissa Adams", age: "27 / F", time: "12:15 PM", img: "https://ui-avatars.com/api/?name=Melissa+Adams&background=random", status: "completed", report: "Pregnancy Test", reportStatus: "ready" }
+    ];
 
-        let currentSlots = 5;
-        let activePatientIndex = -1;
-        let isAvailable = true;
+    let currentSlots = 5;
+    let activePatientIndex = -1;
+    let isAvailable = true; // Placeholder, set by DB on load
+    let DOCTOR_DATA = { name: "Dr. Sharma", specialization: "" }; // Placeholder, set by DB on load
 
-        // --- VIEW NAVIGATION ---
-        function switchView(viewName) {
-            document.querySelectorAll('.app-view').forEach(el => el.classList.remove('active'));
-            document.getElementById(`view-${viewName}`).classList.add('active');
-            
-            document.querySelectorAll('.sidebar .nav-item').forEach(el => el.classList.remove('active'));
-            const navs = document.querySelectorAll('.sidebar .nav-item');
-            if(viewName === 'dashboard') navs[0].classList.add('active');
-            if(viewName === 'reports') navs[1].classList.add('active');
-            if(viewName === 'consultations') navs[2].classList.add('active');
 
-            document.querySelectorAll('.m-nav-item').forEach(el => el.classList.remove('active'));
-            const mNavs = document.querySelectorAll('.m-nav-item');
-            if(viewName === 'dashboard') mNavs[0].classList.add('active');
-            if(viewName === 'reports') mNavs[1].classList.add('active');
-            if(viewName === 'consultations') mNavs[3].classList.add('active');
-        }
+    // --- UTILITY FUNCTIONS ---
 
-        // --- RENDER FUNCTIONS ---
-        function renderDashboard() {
-            // Update Counters
-            const waiting = PATIENTS.filter(p => p.status === 'waiting');
-            const completed = PATIENTS.filter(p => p.status === 'completed');
-            
-            document.getElementById('totalCount').innerText = PATIENTS.length;
-            document.getElementById('remainingCount').innerText = waiting.length;
-            document.getElementById('headerRemaining').innerText = waiting.length;
-
-            // Render Queue List
-            const list = document.getElementById('queueList');
-            list.innerHTML = '';
-            
-            if (waiting.length === 0) {
-                list.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No patients waiting! 🎉</div>';
-            } else {
-                waiting.forEach((p) => {
-                    // Find original index to pass to click handler
-                    const originalIndex = PATIENTS.indexOf(p);
-                    const item = document.createElement('div');
-                    item.className = `queue-item`;
-                    item.innerHTML = `
-                        <div class="p-info">
-                            <img src="${p.img}" class="p-avatar" alt="${p.name}">
-                            <div>
-                                <div class="p-name">${p.name}</div>
-                                <div class="p-meta">
-                                    <span class="p-time"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${p.time}</span>
-                                    <span>#${p.id.split('-')[1]}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button class="btn-view" onclick="openPatientModal(${originalIndex})">View</button>
-                    `;
-                    list.appendChild(item);
-                });
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
             }
+        }
+        return cookieValue;
+    }
 
-            // Render Reports
-            const reportList = document.getElementById('reportList');
-            reportList.innerHTML = '';
-            PATIENTS.forEach(p => {
-                const rItem = document.createElement('li');
-                rItem.className = 'report-item';
-                const statusClass = p.reportStatus === 'ready' ? 'status-ready' : 'status-pending';
-                const iconColor = p.reportStatus === 'ready' ? '#E0F2FE' : '#FEF3C7';
-                const iconTxtColor = p.reportStatus === 'ready' ? '#0369A1' : '#B45309';
+    // Helper to set UI state for the toggle button
+    function updateToggleUI(status) {
+        const wrapper = document.getElementById('statusWrapper');
+        const text = document.getElementById('statusText');
+        
+        // Remove both classes first
+        wrapper.classList.remove('inactive', 'active');
+        
+        if(status) {
+            wrapper.classList.add('active');
+            text.innerText = "Available";
+        } else {
+            wrapper.classList.add('inactive');
+            text.innerText = "Unavailable";
+        }
+    }
+    
+    // --- DATABASE INTEGRATION ---
+
+    async function fetchDoctorData() {
+        // Since we are bypassing login, we need to ensure Django recognizes a session
+        // This function should be called on page load.
+        try {
+            const response = await fetch('/api/doctor/profile/');
+            
+            if (response.status === 404) {
+                 // Happens if Doctor model is not populated for the logged-in user
+                 console.warn("Doctor profile API returned 404. Using placeholder data.");
+                 updateToggleUI(isAvailable);
+                 return;
+            }
+            if (!response.ok) {
+                throw new Error('Failed to fetch doctor profile from API.');
+            }
+            
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                DOCTOR_DATA = data;
+                isAvailable = data.is_available; // Set global status from DB
                 
-                rItem.innerHTML = `
+                // 1. Update all name displays dynamically
+                document.getElementById('docNameDisplay').innerText = data.name;
+                document.getElementById('docNavName').innerText = data.name;
+                
+                // Set the greeting to use the last name (e.g., Dr. Sharma)
+                const lastName = data.name.split(' ').pop();
+                document.getElementById('greeting').innerHTML = `Good Morning, <span id="docNameDisplay">Dr. ${lastName}</span> 👋`;
+                
+                // 2. Set initial toggle state based on DB
+                updateToggleUI(isAvailable);
+                
+                // Update profile edit inputs (optional)
+                document.getElementById('editDocName').value = data.name;
+                document.getElementById('editDocSpec').value = data.specialization || "N/A";
+
+                renderDashboard(); // Re-render if necessary
+            } else {
+                console.error("Profile API Error:", data.message);
+                alert("Could not load doctor profile. Defaulting to placeholders.");
+            }
+        } catch (error) {
+            console.error('Error fetching doctor data:', error);
+        }
+    }
+    
+
+    // --- TOGGLE AVAILABILITY (API POST REQUEST) ---
+    async function toggleAvailability() {
+        // 1. Toggle status locally first (optimistic update)
+        isAvailable = !isAvailable;
+        updateToggleUI(isAvailable); // Update UI immediately
+
+        // 2. Call the API to update the database
+        try {
+            const response = await fetch('/api/doctor/availability/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Pass the CSRF token for security
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ is_available: isAvailable })
+            });
+            
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                console.log(`DB updated: Doctor is now ${data.is_available ? 'Available' : 'Unavailable'}`);
+            } else {
+                // 3. Revert UI if DB update fails
+                isAvailable = !isAvailable; 
+                updateToggleUI(isAvailable);
+                alert(`Error updating status in DB: ${data.message}`);
+            }
+            
+        } catch (error) {
+            console.error('Network Error during availability update:', error);
+            // 3. Revert UI on network error
+            isAvailable = !isAvailable; 
+            updateToggleUI(isAvailable);
+            alert('Network Error. Could not update status.');
+        }
+    }
+
+
+    // --- VIEW NAVIGATION (remains mostly the same) ---
+    function switchView(viewName) {
+        document.querySelectorAll('.app-view').forEach(el => el.classList.remove('active'));
+        document.getElementById(`view-${viewName}`).classList.add('active');
+        
+        document.querySelectorAll('.sidebar .nav-item').forEach(el => el.classList.remove('active'));
+        const navs = document.querySelectorAll('.sidebar .nav-item');
+        if(viewName === 'dashboard') navs[0].classList.add('active');
+        if(viewName === 'reports') navs[1].classList.add('active');
+        if(viewName === 'consultations') navs[2].classList.add('active');
+
+        document.querySelectorAll('.m-nav-item').forEach(el => el.classList.remove('active'));
+        const mNavs = document.querySelectorAll('.m-nav-item');
+        if(viewName === 'dashboard') mNavs[0].classList.add('active');
+        if(viewName === 'reports') mNavs[1].classList.add('active');
+        if(viewName === 'consultations') mNavs[3].classList.add('active');
+    }
+
+    // --- RENDER FUNCTIONS (remains the same) ---
+    function renderDashboard() {
+        // Update Counters
+        const waiting = PATIENTS.filter(p => p.status === 'waiting');
+        const completed = PATIENTS.filter(p => p.status === 'completed');
+        
+        document.getElementById('totalCount').innerText = PATIENTS.length;
+        document.getElementById('remainingCount').innerText = waiting.length;
+        document.getElementById('headerRemaining').innerText = waiting.length;
+
+        // Render Queue List
+        const list = document.getElementById('queueList');
+        list.innerHTML = '';
+        
+        if (waiting.length === 0) {
+            list.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No patients waiting! 🎉</div>';
+        } else {
+            waiting.forEach((p) => {
+                // Find original index to pass to click handler
+                const originalIndex = PATIENTS.indexOf(p);
+                const item = document.createElement('div');
+                item.className = `queue-item`;
+                item.innerHTML = `
                     <div class="p-info">
-                        <div style="width:40px; height:40px; background:${iconColor}; color:${iconTxtColor}; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:700;">Rx</div>
-                        <div class="report-details">
-                            <h4>${p.name} - ${p.report}</h4>
-                            <p>ID: ${p.id}</p>
+                        <img src="${p.img}" class="p-avatar" alt="${p.name}">
+                        <div>
+                            <div class="p-name">${p.name}</div>
+                            <div class="p-meta">
+                                <span class="p-time"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${p.time}</span>
+                                <span>#${p.id.split('-')[1]}</span>
+                            </div>
                         </div>
                     </div>
-                    <span class="status-tag ${statusClass}">${p.reportStatus}</span>
+                    <button class="btn-view" onclick="openPatientModal(${originalIndex})">View</button>
                 `;
-                reportList.appendChild(rItem);
+                list.appendChild(item);
             });
+        }
 
-            // Render Consultation History
-            const historyList = document.getElementById('historyList');
-            historyList.innerHTML = '';
+        // Render Reports
+        const reportList = document.getElementById('reportList');
+        reportList.innerHTML = '';
+        PATIENTS.forEach(p => {
+            const rItem = document.createElement('li');
+            rItem.className = 'report-item';
+            const statusClass = p.reportStatus === 'ready' ? 'status-ready' : 'status-pending';
+            const iconColor = p.reportStatus === 'ready' ? '#E0F2FE' : '#FEF3C7';
+            const iconTxtColor = p.reportStatus === 'ready' ? '#0369A1' : '#B45309';
             
-            if (completed.length === 0) {
-                historyList.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No consultations completed yet.</div>';
-            } else {
-                completed.forEach(p => {
-                    const item = document.createElement('div');
-                    item.className = 'queue-item';
-                    item.innerHTML = `
-                        <div class="p-info">
-                            <img src="${p.img}" class="p-avatar">
-                            <div>
-                                <div class="p-name">${p.name}</div>
-                                <div class="p-meta" style="color:var(--color-success);">Completed • ${p.time}</div>
-                            </div>
+            rItem.innerHTML = `
+                <div class="p-info">
+                    <div style="width:40px; height:40px; background:${iconColor}; color:${iconTxtColor}; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:700;">Rx</div>
+                    <div class="report-details">
+                        <h4>${p.name} - ${p.report}</h4>
+                        <p>ID: ${p.id}</p>
+                    </div>
+                </div>
+                <span class="status-tag ${statusClass}">${p.reportStatus}</span>
+            `;
+            reportList.appendChild(rItem);
+        });
+
+        // Render Consultation History
+        const historyList = document.getElementById('historyList');
+        historyList.innerHTML = '';
+        
+        if (completed.length === 0) {
+            historyList.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No consultations completed yet.</div>';
+        } else {
+            completed.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'queue-item';
+                item.innerHTML = `
+                    <div class="p-info">
+                        <img src="${p.img}" class="p-avatar">
+                        <div>
+                            <div class="p-name">${p.name}</div>
+                            <div class="p-meta" style="color:var(--color-success);">Completed • ${p.time}</div>
                         </div>
-                        <button class="btn-view">Rx</button>
-                    `;
-                    historyList.appendChild(item);
-                });
-            }
+                    </div>
+                    <button class="btn-view">Rx</button>
+                `;
+                historyList.appendChild(item);
+            });
         }
+    }
 
-        // --- NEW STATUS TOGGLE LOGIC ---
-        function toggleAvailability() {
-            isAvailable = !isAvailable;
-            const text = document.getElementById('statusText');
-            const dot = document.getElementById('statusDot');
-            
-            if(isAvailable) {
-                text.innerText = "Available";
-                dot.className = "status-dot s-green";
-            } else {
-                text.innerText = "Unavailable";
-                dot.className = "status-dot s-red";
-            }
+    // --- MODAL LOGIC (remains the same) ---
+    function openPatientModal(index) {
+        activePatientIndex = index;
+        const p = PATIENTS[index];
+        document.getElementById('modalName').innerText = p.name;
+        document.getElementById('modalId').innerText = `PID: #${p.id}`;
+        document.getElementById('modalAge').innerText = p.age;
+        document.getElementById('modalAvatar').src = p.img;
+        document.getElementById('patientModal').style.display = 'flex';
+    }
+
+    function openProfileModal() {
+        // Ensure profile inputs are updated before opening
+        document.getElementById('editDocName').value = DOCTOR_DATA.name;
+        document.getElementById('editDocSpec').value = DOCTOR_DATA.specialization;
+        document.getElementById('doctorProfileModal').style.display = 'flex';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    // --- ACTIONS (remains the same, but uses DOCTOR_DATA for saving) ---
+    function finishConsultation() {
+        if(activePatientIndex > -1) {
+            PATIENTS[activePatientIndex].status = 'completed';
+            PATIENTS[activePatientIndex].reportStatus = 'ready'; // Assume report generated
+            renderDashboard();
+            closeModal('patientModal');
+            alert("Consultation Completed! Moved to History.");
         }
+    }
 
-        // --- MODAL LOGIC ---
-        function openPatientModal(index) {
-            activePatientIndex = index;
-            const p = PATIENTS[index];
-            document.getElementById('modalName').innerText = p.name;
-            document.getElementById('modalId').innerText = `PID: #${p.id}`;
-            document.getElementById('modalAge').innerText = p.age;
-            document.getElementById('modalAvatar').src = p.img;
-            document.getElementById('patientModal').style.display = 'flex';
-        }
+    function saveProfile() {
+        const name = document.getElementById('editDocName').value;
+        const spec = document.getElementById('editDocSpec').value;
+        
+        // Optimistic UI update
+        DOCTOR_DATA.name = name;
+        DOCTOR_DATA.specialization = spec;
 
-        function openProfileModal() {
-            document.getElementById('doctorProfileModal').style.display = 'flex';
-        }
+        // Update UI elements
+        document.getElementById('docNameDisplay').innerText = name;
+        document.getElementById('docNavName').innerText = name;
 
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
+        // **TO DO: Add fetch POST request here to update Doctor model in DB**
 
-        // --- ACTIONS ---
-        function finishConsultation() {
-            if(activePatientIndex > -1) {
-                PATIENTS[activePatientIndex].status = 'completed';
-                PATIENTS[activePatientIndex].reportStatus = 'ready'; // Assume report generated
-                renderDashboard();
-                closeModal('patientModal');
-                alert("Consultation Completed! Moved to History.");
-            }
-        }
+        closeModal('doctorProfileModal');
+        alert("Profile Updated Successfully!");
+    }
 
-        function saveProfile() {
-            const name = document.getElementById('editDocName').value;
-            document.getElementById('docNameDisplay').innerText = name;
-            document.getElementById('docNavName').innerText = name;
-            closeModal('doctorProfileModal');
-            alert("Profile Updated Successfully!");
-        }
+    function adjustSlots(amount) {
+        currentSlots += amount;
+        if(currentSlots < 0) currentSlots = 0;
+        document.getElementById('slotDisplay').innerText = currentSlots;
+        document.getElementById('slotsCount').innerText = currentSlots;
+    }
 
-        function adjustSlots(amount) {
-            currentSlots += amount;
-            if(currentSlots < 0) currentSlots = 0;
-            document.getElementById('slotDisplay').innerText = currentSlots;
-            document.getElementById('slotsCount').innerText = currentSlots;
-        }
+    function confirmSlotUpdate() {
+        // **TO DO: Add fetch POST request here to update Doctor's walk-in slots in DB**
+        alert(`✅ Availability Updated! ${currentSlots} walk-in slots are now live.`);
+    }
 
-        function confirmSlotUpdate() {
-            alert(`✅ Availability Updated! ${currentSlots} walk-in slots are now live.`);
-        }
+    function uploadPrescription() {
+        const pid = document.getElementById('uploadPid').value;
+        if(!pid) { alert("⚠️ Please enter a Patient ID."); return; }
+        alert(`✅ Uploaded successfully to Patient Record #${pid}`);
+        document.getElementById('uploadPid').value = '';
+    }
 
-        function uploadPrescription() {
-            const pid = document.getElementById('uploadPid').value;
-            if(!pid) { alert("⚠️ Please enter a Patient ID."); return; }
-            alert(`✅ Uploaded successfully to Patient Record #${pid}`);
-            document.getElementById('uploadPid').value = '';
-        }
+    // --- SCANNER / CLOCK (remains the same) ---
+    function openScanModal() {
+        document.getElementById('scanModal').style.display = 'flex';
+    }
 
-        // --- SCANNER ---
-        function openScanModal() {
-            document.getElementById('scanModal').style.display = 'flex';
-        }
+    function simulateScanSuccess() {
+        closeModal('scanModal');
+        switchView('dashboard');
+        // Find first waiting patient for demo
+        const waitingIdx = PATIENTS.findIndex(p => p.status === 'waiting');
+        if (waitingIdx !== -1) openPatientModal(waitingIdx);
+        else alert("Patient Found: No active appointment.");
+    }
 
-        function simulateScanSuccess() {
-            closeModal('scanModal');
-            switchView('dashboard');
-            // Find first waiting patient for demo
-            const waitingIdx = PATIENTS.findIndex(p => p.status === 'waiting');
-            if (waitingIdx !== -1) openPatientModal(waitingIdx);
-            else alert("Patient Found: No active appointment.");
-        }
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('liveClock').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
 
-        // --- CLOCK ---
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('liveClock').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-        setInterval(updateTime, 1000);
-        updateTime();
-
-        // Init
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchDoctorData(); // Start by fetching data from the DB
         renderDashboard();
+        updateTime(); 
+        setInterval(updateTime, 1000);
+    });
 
-        // Close Modals on Outside Click
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal-overlay')) {
-                event.target.style.display = "none";
-            }
+    // Close Modals on Outside Click
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal-overlay')) {
+            event.target.style.display = "none";
         }
-    </script>
+    }
+</script>
 </body>
 </html>
