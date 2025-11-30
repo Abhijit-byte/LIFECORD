@@ -36,8 +36,25 @@ def pharmacy_login(request):
     return render(request, 'accounts/pharmacy_loginpage.html')
 def pharmacy_dashboard(request):
     return render(request, 'accounts/pharmacy_dashboard.html')
+def lab_login(request):
+    return render(request, 'accounts/lab_loginpage.html')
+def lab_dashboard(request):
+    return render(request, 'accounts/lab_dashboard.html')
+def medical_records(request):
+    return render(request, 'accounts/Medicine.html')
+def labs(request):
+    return render(request, 'accounts/Labs.html')
+def records(request):
+    return render(request, 'accounts/records.html')
+def emi_payment(request):
+    return render(request, 'accounts/emi.html')
+def ai_bill_analyzer(request):
+    return render(request, 'accounts/aibill.html')
+def payment(request):
+    return render(request, 'accounts/payment.html')
 def doctor_dashboard(request):
     doctor_id = request.session.get("doctor_id")
+
 
     if not doctor_id:
         return redirect("doctor_login")  # protection if session empty

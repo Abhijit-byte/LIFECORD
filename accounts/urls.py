@@ -44,6 +44,14 @@ path("doctor/dashboard/", views.doctor_dashboard, name="doctor_dashboard"),
 path("doctor/update-availability/", views.update_doctor_availability, name="update_doctor_availability"),
 path("api/doctor/availability/", views.update_doctor_availability, name="update_doctor_availability"),
 path("pharmacy/dashboard/", views.pharmacy_dashboard, name="pharmacy_dashboard"),
+path("lab_login/", views.lab_login, name="lab_login"),
+path("lab/dashboard/", views.lab_dashboard, name="lab_dashboard"),
+path("medical_records/", views.medical_records, name="medical_records"),
+path("labs/", views.labs, name="labs"),
+path("records/", views.records, name="records"),
+path("payment/", views.payment, name="payment"),
+path("emi_payment/", views.emi_payment, name="emi_payment"),
+path("ai_bill_analyzer/", views.ai_bill_analyzer, name="ai_bill_analyzer"),
 
 
 ]
